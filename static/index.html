@@ -1,0 +1,988 @@
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #34A853;
+            --primary-dark: #2E7D32;
+            --accent-color: #EA4335;
+            --bg-color: #F8F9FA;
+            --card-bg: #FFFFFF;
+            --text-color: #202124;
+            --secondary-text: #5F6368;
+            --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --animation-speed: 0.2s;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+        
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 900px;
+            min-height: 100vh;
+            padding: 30px;
+            padding-top: 15vh; /* Position content 15% from the top */
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        /* Animated background with more visible animation */
+        .animated-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            overflow: hidden;
+        }
+        
+        .gradient-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.7; /* Increased opacity */
+            animation: float 12s infinite ease-in-out;
+        }
+        
+        .circle-1 {
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(52, 168, 83, 0.3) 0%, rgba(52, 168, 83, 0.1) 70%);
+            top: -10%;
+            right: -10%;
+            animation-delay: 0s;
+            animation-name: float1; /* Custom animation */
+        }
+        
+        .circle-2 {
+            width: 40vw;
+            height: 40vw;
+            background: radial-gradient(circle, rgba(66, 133, 244, 0.25) 0%, rgba(66, 133, 244, 0.05) 70%);
+            bottom: 0%;
+            left: -5%;
+            animation-delay: -3s;
+            animation-name: float2; /* Custom animation */
+        }
+        
+        .circle-3 {
+            width: 30vw;
+            height: 30vw;
+            background: radial-gradient(circle, rgba(234, 67, 53, 0.2) 0%, rgba(234, 67, 53, 0.05) 70%);
+            top: 30%;
+            right: 10%;
+            animation-delay: -6s;
+            animation-name: float3; /* Custom animation */
+        }
+        
+        /* More pronounced animation paths */
+        @keyframes float1 {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-50px, 30px); }
+            50% { transform: translate(-20px, 60px); }
+            75% { transform: translate(-60px, 40px); }
+            100% { transform: translate(0, 0); }
+        }
+        
+        @keyframes float2 {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(60px, -30px); }
+            50% { transform: translate(40px, -70px); }
+            75% { transform: translate(20px, -40px); }
+            100% { transform: translate(0, 0); }
+        }
+        
+        @keyframes float3 {
+            0% { transform: translate(0, 0); }
+            33% { transform: translate(-40px, -40px); }
+            66% { transform: translate(-70px, 20px); }
+            100% { transform: translate(0, 0); }
+        }
+        
+        .face-container {
+            position: relative;
+            width: 500px; /* Further increased size */
+            height: 500px; /* Further increased size */
+            margin-bottom: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.15));
+        }
+        
+        .face-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: transform 0.8s ease-out, filter 0.8s ease-out;
+        }
+
+        .face-image.speaking {
+            animation: pulse var(--animation-speed) infinite alternate;
+        }
+
+        /* Add this new animation class */
+        .face-image.ending-speech {
+            animation: none;
+            transform: scale(1.02); /* Start from a slightly larger scale */
+            filter: brightness(1.02); /* Start from a slightly brighter state */
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                        filter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy easing */
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); filter: brightness(1); }
+            100% { transform: scale(1.05); filter: brightness(1.05); }
+        }
+        
+        .controls-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        .mic-button {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            border: none;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md), 
+                        0 0 0 0 rgba(52, 168, 83, 0.3);
+            z-index: 5;
+        }
+
+        .mic-button.active {
+            border: 3px solid var(--primary-color);
+            background-color: #FFFFFF;
+        }
+
+        .mic-button.active::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2334A853'%3E%3Cpath d='M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z'/%3E%3C/svg%3E");
+        }
+
+        .mic-button.processing {
+            background-color: #4285F4; /* Google blue */
+            animation: processingPulse 1.5s infinite;
+        }
+
+        .mic-button.processing::before {
+            /* Change the icon to a waiting/processing icon */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z'/%3E%3C/svg%3E");
+            animation: rotate 2s linear infinite;
+        }
+
+        @keyframes processingPulse {
+            0% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 0 rgba(66, 133, 244, 0.5); 
+            }
+            70% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 15px rgba(66, 133, 244, 0); 
+            }
+            100% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 0 rgba(66, 133, 244, 0); 
+            }
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .mic-button::before {
+            content: '';
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+        }
+        
+        .mic-button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg),
+                        0 0 0 10px rgba(52, 168, 83, 0.1);
+        }
+        
+        .mic-button:active {
+            transform: translateY(1px);
+            box-shadow: var(--shadow-sm),
+                        0 0 0 5px rgba(52, 168, 83, 0.1);
+        }
+        
+        .mic-button.recording {
+            background-color: var(--accent-color);
+            animation: buttonPulse 1.5s infinite;
+        }
+        
+        .mic-button.recording::before {
+            animation: micPulse 1.5s infinite;
+        }
+        
+        @keyframes buttonPulse {
+            0% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 0 rgba(234, 67, 53, 0.5); 
+            }
+            70% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 15px rgba(234, 67, 53, 0); 
+            }
+            100% { 
+                box-shadow: var(--shadow-md),
+                            0 0 0 0 rgba(234, 67, 53, 0); 
+            }
+        }
+        
+        @keyframes micPulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        .instruction-text {
+            text-align: center;
+            color: var(--secondary-text);
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 20px;
+            letter-spacing: 0.3px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(10px);
+        }
+        
+        @media (max-width: 600px) {
+            .app-container {
+                padding-top: 10vh;
+            }
+            
+            .face-container {
+                width: 300px;
+                height: 300px;
+            }
+            
+            .mic-button {
+                width: 80px;
+                height: 80px;
+            }
+            
+            .instruction-text {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="animated-bg">
+        <div class="gradient-circle circle-1"></div>
+        <div class="gradient-circle circle-2"></div>
+        <div class="gradient-circle circle-3"></div>
+    </div>
+    
+    <div class="app-container">
+        <div class="face-container">
+            <img id="faceImage" class="face-image" src="/static/face.png" alt="Assistant Face">
+        </div>
+        <div class="controls-container">
+            <button id="micButton" class="mic-button">
+                <!-- Microphone icon is added via CSS -->
+            </button>
+            <div class="instruction-text">Press to start conversation</div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+const API_URL = window.location.origin;
+// In your index.html, update the WS_URL definition:
+const WS_URL = window.location.protocol === 'https:' ? 
+  `wss://${window.location.host}/ws` : 
+  `ws://${window.location.host}/ws`;
+
+// DOM Elements
+const micButton = document.getElementById('micButton');
+const faceImage = document.getElementById('faceImage');
+const instruction = document.querySelector('.instruction-text');
+
+// Variables
+let isRecording = false;
+let isSpeaking = false;
+// Add this variable near the top with your other variables:
+let isTransitioning = false;
+let conversationActive = false;
+let mediaRecorder;
+let audioChunks = [];
+let socket = null;
+let silenceTimer = null;
+const SILENCE_THRESHOLD = -15; // dB - adjust based on testing
+const SILENCE_DURATION = 1500; // milliseconds of silence before stopping
+
+// New variables for two-step listening approach
+let waitingForTrigger = false;
+let hasSpokenSinceTrigger = false;
+const TRIGGER_THRESHOLD = -30; // dB - threshold to start active listening (more sensitive than silence)
+
+// Updated conversation mode states to include waiting for speech
+// 'inactive', 'waiting_for_speech', 'listening', 'processing', 'speaking'
+let conversationMode = 'inactive';
+
+// Initialize the WebSocket connection
+function initWebSocket() {
+    console.log("Initializing WebSocket connection...");
+    socket = new WebSocket(WS_URL);
+    
+    socket.onopen = () => {
+        console.log('WebSocket connection established');
+    };
+    
+    // Update your socket.onmessage handler in index.html to handle ping messages:
+    socket.onmessage = async (event) => {
+        if (event.data instanceof Blob) {
+            // Audio response from server
+            const audioBlob = event.data;
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // Update state
+            conversationMode = 'speaking';
+            
+            // Update UI
+            micButton.classList.remove('processing');
+            instruction.textContent = 'AI is speaking...';
+            
+            // Play the audio
+            const audio = new Audio(audioUrl);
+            
+            // ... rest of your audio handling code ...
+        } else {
+            // Process text message
+            try {
+                const response = JSON.parse(event.data);
+                console.log('Received text response:', response);
+                
+                // Handle ping message
+                if (response.ping === 1) {
+                    console.log("Received ping from server, sending pong");
+                    socket.send(JSON.stringify({pong: 1}));
+                    return;
+                }
+                
+                // Handle error message
+                if (response.error && conversationMode !== 'inactive' && conversationActive) {
+                    // Error occurred, go to waiting for speech mode
+                    conversationMode = 'waiting_for_speech';
+                    waitingForTrigger = true;
+                    hasSpokenSinceTrigger = false;
+                    micButton.classList.remove('processing');
+                    micButton.classList.add('active');
+                    instruction.textContent = 'Waiting for you to speak...';
+                    
+                    setTimeout(() => {
+                        if (conversationMode === 'waiting_for_speech' && conversationActive) {
+                            startWaitingForSpeech();
+                        }
+                    }, 500);
+                }
+                
+                // Handle normal text response
+                if (response.text) {
+                    console.log("Received text from server:", response.text);
+                }
+            } catch (e) {
+                console.error('Error parsing message:', e);
+            }
+        }
+    };
+    
+    socket.onclose = () => {
+        console.log('WebSocket connection closed');
+        setTimeout(initWebSocket, 3000); // Try to reconnect
+    };
+    
+    socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+}
+
+// Initialize the application
+async function init() {
+    console.log("Initializing application...");
+    // Check for microphone permissions
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        console.log("Microphone permissions granted");
+    } catch (error) {
+        console.error('Microphone access error:', error);
+        alert('Please allow microphone access to use this app');
+        return;
+    }
+    
+    // Initialize WebSocket
+    initWebSocket();
+    
+    // Set up microphone button
+    console.log("Setting up mic button click handler");
+    micButton.addEventListener('click', toggleRecording);
+    console.log("Initialization complete");
+}
+
+// Toggle recording state
+function toggleRecording() {
+    console.log(`Toggle recording called. Current state: ${conversationActive}`);
+    
+    // Ignore clicks during transitions
+    if (isTransitioning) {
+        console.log("Ignoring click - system is transitioning states");
+        return;
+    }
+    // If conversation is active, end it
+    if (conversationActive) {
+        console.log("Ending conversation - calling hardReset()");
+        conversationActive = false;
+        hardReset();
+        return;
+    }
+    
+    // Otherwise, start a new conversation
+    console.log("Starting new conversation");
+    conversationActive = true;
+    startConversation();
+}
+
+// Hard reset function that forces everything back to initial state
+function hardReset() {
+    console.log("HARD RESET - Forcing everything to initial state");
+    
+    // 1. Stop any playing audio
+    document.querySelectorAll('audio').forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+    });
+    
+    // 2. Stop any recording
+    if (mediaRecorder) {
+        try {
+            if (mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            
+            if (mediaRecorder.stream) {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        } catch (e) {
+            console.log("Error stopping recorder:", e);
+        }
+    }
+    
+    // 3. Reset all variables
+    isRecording = false;
+    isSpeaking = false;
+    conversationMode = 'inactive';
+    audioChunks = [];
+    waitingForTrigger = false;
+    hasSpokenSinceTrigger = false;
+    
+    // 4. Clear any timers
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    
+    // 5. Reset all UI elements
+    faceImage.classList.remove('speaking');
+    faceImage.classList.remove('ending-speech');
+    
+    micButton.classList.remove('active');
+    micButton.classList.remove('recording');
+    micButton.classList.remove('processing');
+    
+    // 6. Reset instruction text
+    instruction.textContent = 'Press to start conversation';
+    
+    console.log("Hard reset complete - system in initial state");
+}
+
+// Function to start a conversation
+function startConversation() {
+    console.log("Starting conversation");
+    
+    // Set states
+    conversationMode = 'listening';
+    
+    // Update UI
+    micButton.classList.add('active');
+    micButton.classList.add('recording');
+    instruction.textContent = 'Listening...';
+    
+    // Start recording
+    startRecording();
+}
+
+// New function to listen for speech trigger
+// Replace your ENTIRE startWaitingForSpeech function with this corrected version:
+
+// New function to listen for speech trigger
+async function startWaitingForSpeech() {
+    try {
+        // Check if conversation is still active
+        if (!conversationActive) {
+            console.log("Conversation no longer active");
+            return;
+        }
+        
+        console.log("Starting to wait for speech trigger");
+        
+        // Get microphone stream
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        
+        // Set up audio analysis
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioSource = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.2; // More responsive for trigger detection
+        audioSource.connect(analyser);
+        
+        // Buffer for analyser data
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        // Function to check for speech trigger
+        // Update the checkForSpeechTrigger function inside startWaitingForSpeech
+        const checkForSpeechTrigger = () => {
+            if (!waitingForTrigger || !conversationActive) {
+                // Clean up if we're no longer waiting
+                stream.getTracks().forEach(track => track.stop());
+                console.log("Exiting speech trigger detection - no longer waiting");
+                return;
+            }
+            
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Calculate average volume level
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            
+            // Convert to dB
+            const dB = 20 * Math.log10(average / 255);
+            
+            // Periodically log the sound level to verify it's detecting sound
+            if (Math.random() < 0.01) { // Log approximately 1% of the time to avoid flooding console
+                console.log(`Current sound level: ${dB.toFixed(2)} dB (Trigger: ${TRIGGER_THRESHOLD} dB)`);
+            }
+            
+            // Check if sound is above trigger threshold
+            if (dB > TRIGGER_THRESHOLD) {
+                console.log(`Speech detected (${dB.toFixed(2)} dB), starting active listening`);
+                
+                // Set transition flag to prevent accidental clicks
+                isTransitioning = true;
+                
+                // Speech detected, transition to active listening
+                waitingForTrigger = false;
+                conversationMode = 'listening';
+                
+                // Debug logging
+                console.log("Setting UI elements for recording mode");
+                
+                // Update UI
+                micButton.classList.remove('active');
+                micButton.classList.add('recording');
+                instruction.textContent = 'Listening...';
+                
+                // Clean up current audio analysis
+                console.log("Stopping waiting stream");
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Debug logging before starting recording
+                console.log("About to start recording with delay");
+                
+                // Start actual recording after a short delay
+                setTimeout(() => {
+                    console.log("Starting recording now");
+                    startRecording();
+                    
+                    // Reset transition flag after a delay
+                    setTimeout(() => {
+                        isTransitioning = false;
+                        console.log("Reset transition flag, isTransitioning =", isTransitioning);
+                    }, 500);
+                }, 100);
+                
+                return;
+            }
+            
+            // Continue checking for trigger
+            requestAnimationFrame(checkForSpeechTrigger);
+        };
+        
+        // Start checking for speech trigger
+        checkForSpeechTrigger();
+        
+    } catch (error) {
+        console.error('Error starting speech trigger detection:', error);
+        
+        // Try to recover by going to active listening
+        if (conversationActive) {
+            waitingForTrigger = false;
+            conversationMode = 'listening';
+            micButton.classList.add('recording');
+            instruction.textContent = 'Listening...';
+            startRecording();
+        }
+    }
+}
+
+// Start recording audio
+async function startRecording() {
+    try {
+        // Check if already recording
+        if (isRecording) {
+            console.log("Already recording, returning early");
+            return;
+        }
+        
+        console.log("Starting new recording session");
+
+        // Check if conversation is still active
+        if (!conversationActive) {
+            console.log("Conversation no longer active, not starting recording");
+            return;
+        }
+        
+        // Check WebSocket
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            console.log('Connection not available. Reconnecting...');
+            initWebSocket();
+            return;
+        }
+        
+        // Get microphone stream
+        console.log("Getting microphone stream for recording");
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        
+        console.log("Got microphone stream successfully");
+        
+        // Set up recorder
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/webm';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = '';
+            }
+        }
+        
+        const recorderOptions = mimeType ? { mimeType } : {};
+        mediaRecorder = new MediaRecorder(stream, recorderOptions);
+        
+        // Clear previous chunks
+        audioChunks = [];
+        
+        // Set up event handlers
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        mediaRecorder.onstop = async () => {
+            // Reset recording flag right away
+            isRecording = false;
+            console.log("mediaRecorder stopped, isRecording set to false");
+            
+            // Check if conversation is still active
+            if (!conversationActive) {
+                console.log("Conversation no longer active, discarding audio");
+                return;
+    }
+            
+            // Make sure we have audio data
+            if (audioChunks.length > 0 && audioChunks[0].size > 0) {
+                // Combine audio chunks into a single blob
+                const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+                audioChunks = [];
+                
+                // Only send if the audio is long enough
+                if (audioBlob.size > 1000) {
+                    // Update state
+                    conversationMode = 'processing';
+                    
+                    // Update UI
+                    micButton.classList.remove('recording');
+                    micButton.classList.add('processing');
+                    instruction.textContent = 'Processing...';
+                    
+                    // Send audio to server
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        try {
+                            // In your mediaRecorder.onstop handler, after sending the audio:
+                            const arrayBuffer = await audioBlob.arrayBuffer();
+                            console.log("Sending audio data of size:", arrayBuffer.byteLength);
+                            socket.send(arrayBuffer);
+                            console.log("Audio data sent successfully");
+                        } catch (error) {
+                            console.error("Error sending audio:", error);
+                            // If error, go back to waiting for speech mode
+                            setTimeout(() => {
+                                if (conversationMode === 'processing' && conversationActive) {
+                                    conversationMode = 'waiting_for_speech';
+                                    waitingForTrigger = true;
+                                    hasSpokenSinceTrigger = false;
+                                    micButton.classList.remove('processing');
+                                    micButton.classList.add('active');
+                                    instruction.textContent = 'Waiting for you to speak...';
+                                    startWaitingForSpeech();
+                                }
+                            }, 1000);
+                        }
+                    }
+                } else {
+                    // Too short, go back to waiting for speech
+                    if (conversationMode !== 'inactive' && conversationActive) {
+                        conversationMode = 'waiting_for_speech';
+                        waitingForTrigger = true;
+                        hasSpokenSinceTrigger = false;
+                        micButton.classList.remove('recording');
+                        micButton.classList.add('active');
+                        instruction.textContent = 'Waiting for you to speak...';
+                        startWaitingForSpeech();
+                    }
+                }
+            } else {
+                // No audio data, go back to waiting for speech
+                if (conversationMode !== 'inactive' && conversationActive) {
+                    conversationMode = 'waiting_for_speech';
+                    waitingForTrigger = true;
+                    hasSpokenSinceTrigger = false;
+                    micButton.classList.remove('recording');
+                    micButton.classList.add('active');
+                    instruction.textContent = 'Waiting for you to speak...';
+                    startWaitingForSpeech();
+                }
+            }
+        };
+        
+        // Start recording
+        mediaRecorder.start(500);
+        isRecording = true;
+        
+        // Set up voice detection
+        setupVoiceActivityDetection(stream);
+        
+    } catch (error) {
+        console.error('Error starting recording:', error);
+        // Try to recover by going to waiting for speech mode
+        if (conversationMode !== 'inactive' && conversationActive) {
+            setTimeout(() => {
+                conversationMode = 'waiting_for_speech';
+                waitingForTrigger = true;
+                hasSpokenSinceTrigger = false;
+                micButton.classList.remove('recording');
+                micButton.classList.add('active');
+                instruction.textContent = 'Waiting for you to speak...';
+                startWaitingForSpeech();
+            }, 1000);
+        }
+    }
+}
+
+// Set up voice activity detection to automatically stop when silence is detected
+function setupVoiceActivityDetection(stream) {
+    // Create audio context
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioSource = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.4;
+    audioSource.connect(analyser);
+    
+    // Buffer for analyser data
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    // Function to check audio levels
+    const checkAudioLevel = () => {
+        if (!isRecording || !conversationActive) return;
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Calculate average volume level
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        const average = sum / dataArray.length;
+        
+        // Convert to dB
+        const dB = 20 * Math.log10(average / 255);
+        
+        // If sound is loud enough, mark that the user has spoken
+        if (dB > TRIGGER_THRESHOLD) {
+            hasSpokenSinceTrigger = true;
+        }
+        
+        // Only check for silence if the user has already spoken
+        if (hasSpokenSinceTrigger) {
+            // Check if speaking or silent
+            if (dB < SILENCE_THRESHOLD) {
+                // If silence detected, start or continue timer
+                if (!silenceTimer) {
+                    silenceTimer = setTimeout(() => {
+                        if (isRecording && conversationActive) {
+                            console.log('Silence after speech detected, stopping recording');
+                            stopRecording();
+                        }
+                    }, SILENCE_DURATION);
+                }
+            } else {
+                // If sound detected, clear timer
+                if (silenceTimer) {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = null;
+                }
+            }
+        }
+        
+        // Continue checking while recording
+        if (isRecording && conversationActive) {
+            requestAnimationFrame(checkAudioLevel);
+        }
+    };
+    
+    // Start checking audio levels
+    checkAudioLevel();
+}
+
+// Stop recording audio
+function stopRecording() {
+    // Clear any silence timer
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        
+        // Stop all tracks
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        
+        // Reset hasSpokenSinceTrigger for next round
+        hasSpokenSinceTrigger = false;
+        
+        // Keep isRecording true until we've processed the audio
+    } else {
+        resetRecording();
+    }
+}
+
+// Reset recording state without sending audio
+function resetRecording() {
+    // Clear any silence timer
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    
+    // Update UI
+    isRecording = false;
+    micButton.classList.remove('recording');
+    micButton.classList.remove('processing');
+    
+    // Reset speech detection variables
+    hasSpokenSinceTrigger = false;
+    
+    // Clear audio chunks
+    audioChunks = [];
+}
+
+// Add a direct test function to verify the button click is working
+function testMicButton() {
+    console.log("Testing mic button click...");
+    micButton.click();
+}
+
+// Log that script has loaded
+console.log("Script loaded, waiting for DOM to be ready");
+
+// Initialize the app when the page loads
+// Initialize the app when the page loads
+window.addEventListener('load', function() {
+    console.log("Page loaded, initializing app");
+    init();
+    
+    // No second event listener needed!
+});
+
+// Call testMicButton after a delay to verify functionality
+setTimeout(function() {
+    console.log("Ready for manual testing - open browser console to see debug messages");
+}, 2000);
+    </script>
+</body>
+</html>
