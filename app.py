@@ -352,17 +352,14 @@ async def update_system_prompt(data: SystemPromptUpdate):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    print("FULL WEBSOCKET HANDLER: Connection accepted")
+    print("TEST WEBSOCKET HANDLER: Connection accepted")
     await websocket.accept()
     
-    # Initialize conversation history for context with system prompt
-    conversation_history = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
-    
-    # Set up a background task to send pings every 30 seconds
+    # Set up a background task to send pings every 15 seconds
     async def ping():
         while True:
             try:
-                await asyncio.sleep(15)  # Reduced from 30 seconds
+                await asyncio.sleep(15)
                 await websocket.send_text('{"ping": 1}')
                 print("Ping sent to keep connection alive")
             except Exception as e:
@@ -373,116 +370,47 @@ async def websocket_endpoint(websocket: WebSocket):
     ping_task = asyncio.create_task(ping())
     
     try:
-        # Handle WebSocket connection for real-time audio streaming
+        # Handle WebSocket connection
         while True:
             try:
                 # Log connection state
                 print(f"WebSocket connection state: {websocket.client_state}")
                 
-                # Receive audio chunk from client
+                # Receive message from client
                 print("About to receive message...")
                 message = await websocket.receive()
                 
-                # Check if this is a text message (might be a pong response)
+                # Handle text message
                 if message.get("type") == "text":
                     text_data = message.get("text", "{}")
-                    print(f"Received text message: {text_data[:100]}...")
                     try:
                         json_data = json.loads(text_data)
                         if json_data.get("pong") == 1:
                             print("Received pong from client")
                             continue
-                    except Exception as e:
-                        print(f"Error parsing text message: {str(e)}")
-                        continue
+                    except:
+                        pass
                 
                 # Handle binary audio data
                 if message.get("type") == "bytes":
                     audio_chunk = message.get("bytes")
-                    print(f"Received audio chunk of size: {len(audio_chunk)} bytes - mime type: {message.get('subtype', 'unknown')}")
+                    print(f"Received audio chunk of size: {len(audio_chunk)} bytes")
                     
-                    # TESTING: Uncomment to quickly test if basic responses work
-                    # await websocket.send_json({"text": "This is a test response, skipping actual processing"})
-                    # test_audio = b'TEST_AUDIO_DATA'
-                    # await websocket.send_bytes(test_audio)
-                    # continue  # Skip regular processing
+                    # IMPORTANT: Send a test response immediately without doing any API calls
+                    print("Sending test text response")
+                    await websocket.send_json({"text": "This is a test response. Your audio was received."})
                     
-                    # Save for debugging (optional)
-                    try:
-                        with open("/tmp/debug_audio.webm", "wb") as f:
-                            f.write(audio_chunk)
-                        print("Saved debug audio file")
-                    except Exception as e:
-                        print(f"Error saving debug file: {str(e)} - continuing without saving")
-                    
-                    # Use Speech-to-Text to convert audio to text
-                    print(f"About to transcribe {len(audio_chunk)} bytes of audio...")
-                    transcribed_text = await elevenlabs_speech_to_text(audio_chunk)
-                    
-                    if not transcribed_text:
-                        print("Failed to transcribe audio")
-                        await websocket.send_json({"error": "Failed to transcribe audio. Please try again."})
-                        continue
-                        
-                    print(f"Transcription result: SUCCESS - '{transcribed_text}'")
-                    
-                    # Add user message to conversation history
-                    conversation_history.append({"role": "user", "content": transcribed_text})
-                    
-                    # Send to OpenAI API (no need to include system prompt as it's already in conversation_history)
-                    print("Sending to OpenAI API...")
-                    try:
-                        response = await call_openai_api(conversation_history, include_system_prompt=False)
-                        print(f"OpenAI API response received successfully")
-                    except Exception as e:
-                        print(f"Error calling OpenAI API: {str(e)}")
-                        print(traceback.format_exc())
-                        await websocket.send_json({"error": f"Error calling AI model: {str(e)}"})
-                        continue
-                    
-                    if response and "choices" in response and len(response["choices"]) > 0:
-                        # Extract assistant's response
-                        assistant_message = response["choices"][0]["message"]["content"]
-                        print(f"Assistant response: '{assistant_message}'")
-                        
-                        # Add to conversation history
-                        conversation_history.append({"role": "assistant", "content": assistant_message})
-                        
-                        # Send text response immediately
-                        print("Sending text response to client...")
-                        await websocket.send_json({"text": assistant_message})
-                        
-                        # Convert to speech
-                        print("Converting text to speech...")
-                        try:
-                            audio_response = await elevenlabs_text_to_speech(assistant_message)
-                        except Exception as e:
-                            print(f"Error in text-to-speech: {str(e)}")
-                            print(traceback.format_exc())
-                            await websocket.send_json({"error": f"Error generating speech: {str(e)}"})
-                            continue
-                        
-                        if audio_response:
-                            # Send audio
-                            print(f"Sending audio response of size: {len(audio_response)} bytes")
-                            await websocket.send_bytes(audio_response)
-                            print("Audio response sent successfully")
-                        else:
-                            print("Failed to generate speech")
-                            await websocket.send_json({"error": "Failed to generate speech", "text": assistant_message})
-                    else:
-                        error_msg = "Failed to get response from AI model"
-                        if "error" in response:
-                            error_msg += f": {response.get('error', {}).get('message', 'Unknown error')}"
-                        print(error_msg)
-                        await websocket.send_json({"error": error_msg})
-                
+                    # Send a mock audio response (just a few empty bytes)
+                    test_audio = b'TEST_AUDIO_DATA'
+                    print("Sending test audio response")
+                    await websocket.send_bytes(test_audio)
+                    print("Test responses sent successfully")
+            
             except WebSocketDisconnect:
                 print("WebSocket disconnected during processing")
-                break  # Exit the loop if disconnected
+                break
             except Exception as e:
                 print(f"Error in processing: {str(e)}")
-                print(traceback.format_exc())
                 try:
                     await websocket.send_json({"error": f"Error processing: {str(e)}"})
                 except:
@@ -491,15 +419,162 @@ async def websocket_endpoint(websocket: WebSocket):
     
     except WebSocketDisconnect:
         print("WebSocket disconnected")
-        ping_task.cancel()  # Cancel ping task on disconnect
+        ping_task.cancel()
     except Exception as e:
         print(f"Critical WebSocket error: {str(e)}")
-        print(traceback.format_exc())
-        ping_task.cancel()  # Cancel ping task on error
-        try:
-            await websocket.send_json({"error": f"Server error: {str(e)}"})
-        except:
-            print("Could not send error message after critical error - connection may be closed")
+        ping_task.cancel()
+
+
+# @app.websocket("/ws")
+# async def websocket_endpoint(websocket: WebSocket):
+#     print("FULL WEBSOCKET HANDLER: Connection accepted")
+#     await websocket.accept()
+    
+#     # Initialize conversation history for context with system prompt
+#     conversation_history = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
+    
+#     # Set up a background task to send pings every 30 seconds
+#     async def ping():
+#         while True:
+#             try:
+#                 await asyncio.sleep(15)  # Reduced from 30 seconds
+#                 await websocket.send_text('{"ping": 1}')
+#                 print("Ping sent to keep connection alive")
+#             except Exception as e:
+#                 print(f"Error in ping task: {str(e)}")
+#                 break
+    
+#     # Start ping task
+#     ping_task = asyncio.create_task(ping())
+    
+#     try:
+#         # Handle WebSocket connection for real-time audio streaming
+#         while True:
+#             try:
+#                 # Log connection state
+#                 print(f"WebSocket connection state: {websocket.client_state}")
+                
+#                 # Receive audio chunk from client
+#                 print("About to receive message...")
+#                 message = await websocket.receive()
+                
+#                 # Check if this is a text message (might be a pong response)
+#                 if message.get("type") == "text":
+#                     text_data = message.get("text", "{}")
+#                     print(f"Received text message: {text_data[:100]}...")
+#                     try:
+#                         json_data = json.loads(text_data)
+#                         if json_data.get("pong") == 1:
+#                             print("Received pong from client")
+#                             continue
+#                     except Exception as e:
+#                         print(f"Error parsing text message: {str(e)}")
+#                         continue
+                
+#                 # Handle binary audio data
+#                 if message.get("type") == "bytes":
+#                     audio_chunk = message.get("bytes")
+#                     print(f"Received audio chunk of size: {len(audio_chunk)} bytes - mime type: {message.get('subtype', 'unknown')}")
+                    
+#                     # TESTING: Uncomment to quickly test if basic responses work
+#                     # await websocket.send_json({"text": "This is a test response, skipping actual processing"})
+#                     # test_audio = b'TEST_AUDIO_DATA'
+#                     # await websocket.send_bytes(test_audio)
+#                     # continue  # Skip regular processing
+                    
+#                     # Save for debugging (optional)
+#                     try:
+#                         with open("/tmp/debug_audio.webm", "wb") as f:
+#                             f.write(audio_chunk)
+#                         print("Saved debug audio file")
+#                     except Exception as e:
+#                         print(f"Error saving debug file: {str(e)} - continuing without saving")
+                    
+#                     # Use Speech-to-Text to convert audio to text
+#                     print(f"About to transcribe {len(audio_chunk)} bytes of audio...")
+#                     transcribed_text = await elevenlabs_speech_to_text(audio_chunk)
+                    
+#                     if not transcribed_text:
+#                         print("Failed to transcribe audio")
+#                         await websocket.send_json({"error": "Failed to transcribe audio. Please try again."})
+#                         continue
+                        
+#                     print(f"Transcription result: SUCCESS - '{transcribed_text}'")
+                    
+#                     # Add user message to conversation history
+#                     conversation_history.append({"role": "user", "content": transcribed_text})
+                    
+#                     # Send to OpenAI API (no need to include system prompt as it's already in conversation_history)
+#                     print("Sending to OpenAI API...")
+#                     try:
+#                         response = await call_openai_api(conversation_history, include_system_prompt=False)
+#                         print(f"OpenAI API response received successfully")
+#                     except Exception as e:
+#                         print(f"Error calling OpenAI API: {str(e)}")
+#                         print(traceback.format_exc())
+#                         await websocket.send_json({"error": f"Error calling AI model: {str(e)}"})
+#                         continue
+                    
+#                     if response and "choices" in response and len(response["choices"]) > 0:
+#                         # Extract assistant's response
+#                         assistant_message = response["choices"][0]["message"]["content"]
+#                         print(f"Assistant response: '{assistant_message}'")
+                        
+#                         # Add to conversation history
+#                         conversation_history.append({"role": "assistant", "content": assistant_message})
+                        
+#                         # Send text response immediately
+#                         print("Sending text response to client...")
+#                         await websocket.send_json({"text": assistant_message})
+                        
+#                         # Convert to speech
+#                         print("Converting text to speech...")
+#                         try:
+#                             audio_response = await elevenlabs_text_to_speech(assistant_message)
+#                         except Exception as e:
+#                             print(f"Error in text-to-speech: {str(e)}")
+#                             print(traceback.format_exc())
+#                             await websocket.send_json({"error": f"Error generating speech: {str(e)}"})
+#                             continue
+                        
+#                         if audio_response:
+#                             # Send audio
+#                             print(f"Sending audio response of size: {len(audio_response)} bytes")
+#                             await websocket.send_bytes(audio_response)
+#                             print("Audio response sent successfully")
+#                         else:
+#                             print("Failed to generate speech")
+#                             await websocket.send_json({"error": "Failed to generate speech", "text": assistant_message})
+#                     else:
+#                         error_msg = "Failed to get response from AI model"
+#                         if "error" in response:
+#                             error_msg += f": {response.get('error', {}).get('message', 'Unknown error')}"
+#                         print(error_msg)
+#                         await websocket.send_json({"error": error_msg})
+                
+#             except WebSocketDisconnect:
+#                 print("WebSocket disconnected during processing")
+#                 break  # Exit the loop if disconnected
+#             except Exception as e:
+#                 print(f"Error in processing: {str(e)}")
+#                 print(traceback.format_exc())
+#                 try:
+#                     await websocket.send_json({"error": f"Error processing: {str(e)}"})
+#                 except:
+#                     print("Could not send error message - connection may be closed")
+#                 continue
+    
+#     except WebSocketDisconnect:
+#         print("WebSocket disconnected")
+#         ping_task.cancel()  # Cancel ping task on disconnect
+#     except Exception as e:
+#         print(f"Critical WebSocket error: {str(e)}")
+#         print(traceback.format_exc())
+#         ping_task.cancel()  # Cancel ping task on error
+#         try:
+#             await websocket.send_json({"error": f"Server error: {str(e)}"})
+#         except:
+#             print("Could not send error message after critical error - connection may be closed")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
