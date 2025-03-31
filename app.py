@@ -11,6 +11,7 @@ import os
 import base64
 from dotenv import load_dotenv
 import asyncio
+APP_VERSION = "v2 - Full WebSocket Handler"
 
 # Load environment variables
 load_dotenv()
@@ -223,6 +224,12 @@ async def get_root():
     with open("static/index.html", "r") as f:
         return f.read()
     
+@app.get("/", response_class=HTMLResponse)
+async def get_root():
+    print(f"App version: {APP_VERSION}")
+    with open("static/index.html", "r") as f:
+        return f.read()
+    
 @app.get("/test-model")
 async def test_model():
     """Test endpoint to verify the fine-tuned model is working correctly"""
@@ -292,6 +299,7 @@ async def update_system_prompt(data: SystemPromptUpdate):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    print("FULL WEBSOCKET HANDLER: Connection accepted")
     await websocket.accept()
     
     # Initialize conversation history for context with system prompt
@@ -416,56 +424,6 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_json({"error": f"Server error: {str(e)}"})
         except:
             pass
-
-# @app.websocket("/ws")
-# async def websocket_endpoint(websocket: WebSocket):
-#     await websocket.accept()
-#     print("WebSocket connection accepted")
-    
-#     # Set up ping task as before
-#     async def ping():
-#         while True:
-#             try:
-#                 await asyncio.sleep(30)
-#                 await websocket.send_text('{"ping": 1}')
-#                 print("Ping sent to keep connection alive")
-#             except Exception as e:
-#                 print(f"Error in ping task: {str(e)}")
-#                 break
-    
-#     ping_task = asyncio.create_task(ping())
-    
-#     try:
-#         while True:
-#             print("Waiting for data...")
-#             data = await websocket.receive()
-#             print(f"Received data type: {data.get('type')}")
-            
-#             if data.get('type') == 'bytes':
-#                 bytes_data = data.get('bytes')
-#                 print(f"Received {len(bytes_data)} bytes of audio data")
-                
-#                 # Just echo back a success message for testing
-#                 await websocket.send_json({"status": "success", "received_bytes": len(bytes_data)})
-                
-#             elif data.get('type') == 'text':
-#                 text_data = data.get('text')
-#                 print(f"Received text: {text_data}")
-                
-#                 # Handle ping/pong
-#                 try:
-#                     json_data = json.loads(text_data)
-#                     if json_data.get('pong') == 1:
-#                         print("Received pong from client")
-#                 except:
-#                     pass
-    
-#     except WebSocketDisconnect:
-#         print("WebSocket disconnected")
-#         ping_task.cancel()
-#     except Exception as e:
-#         print(f"Error in websocket: {str(e)}")
-#         ping_task.cancel()
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
