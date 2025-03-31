@@ -11,7 +11,10 @@ import os
 import base64
 from dotenv import load_dotenv
 import asyncio
-APP_VERSION = "v2 - Full WebSocket Handler"
+import traceback
+
+# Version identifier to confirm deployment
+APP_VERSION = "v2 - Full WebSocket Handler with Error Handling"
 
 # Load environment variables
 load_dotenv()
@@ -68,7 +71,7 @@ async def call_openai_api(messages, include_system_prompt=True):
     print(f"Using system prompt: {messages[0]['content'] if messages and messages[0]['role'] == 'system' else 'None'}")
     print(f"First user message in conversation: {messages[1]['content'][:50]}..." if len(messages) > 1 else "No user messages")
     
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
         request_body = {
             "model": CUSTOM_MODEL_ID,
             "messages": messages,
@@ -78,6 +81,7 @@ async def call_openai_api(messages, include_system_prompt=True):
         print(f"Request to OpenAI API: {json.dumps(request_body, indent=2)}")
         
         try:
+            print("Sending request to OpenAI API...")
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -87,6 +91,7 @@ async def call_openai_api(messages, include_system_prompt=True):
                 json=request_body
             )
             
+            print(f"OpenAI API response status: {response.status_code}")
             response_data = response.json()
             
             # Log model used in response
@@ -95,45 +100,64 @@ async def call_openai_api(messages, include_system_prompt=True):
             else:
                 print("Model information not found in response")
                 
-            print(f"Response status: {response.status_code}")
-            
             # Print a snippet of the response to verify content
             if "choices" in response_data and len(response_data["choices"]) > 0:
                 content = response_data["choices"][0]["message"]["content"]
                 print(f"Response content snippet: {content[:100]}...")
+            else:
+                print("No choices found in response")
+                if "error" in response_data:
+                    print(f"OpenAI API error: {response_data['error']}")
             
             return response_data
             
         except Exception as e:
             print(f"Error in OpenAI API call: {str(e)}")
+            print(traceback.format_exc())
             raise
 
 async def elevenlabs_text_to_speech(text):
     """Convert text to speech using ElevenLabs API"""
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream",
-            headers={
-                "Accept": "audio/mpeg",
-                "xi-api-key": ELEVEN_API_KEY,
-                "Content-Type": "application/json"
-            },
-            json={
-                "text": text,
-                "model_id": "eleven_monolingual_v1",
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.5
+    print(f"Converting to speech: '{text[:50]}...'")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
+            print(f"Calling ElevenLabs TTS API with voice ID: {ELEVENLABS_VOICE_ID}")
+            response = await client.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream",
+                headers={
+                    "Accept": "audio/mpeg",
+                    "xi-api-key": ELEVEN_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "text": text,
+                    "model_id": "eleven_monolingual_v1",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.5
+                    }
                 }
-            }
-        )
-        return response.content if response.status_code == 200 else None
+            )
+            print(f"ElevenLabs TTS response status: {response.status_code}")
+            if response.status_code == 200:
+                print(f"Successfully received audio of size: {len(response.content)} bytes")
+                return response.content
+            else:
+                print(f"ElevenLabs TTS error: {response.text}")
+                return None
+    except Exception as e:
+        print(f"Error in ElevenLabs TTS call: {str(e)}")
+        print(traceback.format_exc())
+        return None
 
 async def elevenlabs_speech_to_text(audio_chunk):
     """Convert audio to text using ElevenLabs Speech Recognition API"""
+    print(f"Starting speech-to-text process for {len(audio_chunk)} bytes of audio...")
+    
     # First, try to directly transcribe the audio bytes
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        print("Trying ElevenLabs direct WebM transcription...")
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
             # For audio/webm format from browser
             files = {'file': ('audio.webm', audio_chunk, 'audio/webm')}
             response = await client.post(
@@ -144,17 +168,22 @@ async def elevenlabs_speech_to_text(audio_chunk):
                 files=files
             )
             
+            print(f"ElevenLabs WebM transcription response status: {response.status_code}")
             if response.status_code == 200:
                 result = response.json()
-                return result.get("text", "")
+                transcribed_text = result.get("text", "")
+                print(f"Transcription successful: '{transcribed_text[:50]}...'")
+                return transcribed_text
             else:
-                print(f"Speech recognition error: {response.status_code} - {response.text}")
+                print(f"WebM speech recognition error: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Error in direct transcription: {str(e)}")
+        print(f"Error in direct WebM transcription: {str(e)}")
+        print(traceback.format_exc())
     
     # Fallback to base64 method
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        print("Falling back to ElevenLabs base64 transcription...")
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
             # Convert audio chunk to base64
             base64_audio = base64.b64encode(audio_chunk).decode("utf-8")
             
@@ -171,65 +200,82 @@ async def elevenlabs_speech_to_text(audio_chunk):
                 }
             )
             
+            print(f"ElevenLabs base64 transcription response status: {response.status_code}")
             if response.status_code == 200:
                 result = response.json()
-                return result.get("text", "")
+                transcribed_text = result.get("text", "")
+                print(f"Base64 transcription successful: '{transcribed_text[:50]}...'")
+                return transcribed_text
             else:
                 print(f"Base64 speech recognition error: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Error in base64 transcription: {str(e)}")
+        print(traceback.format_exc())
 
     # As a last resort, try with OpenAI's Whisper API
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        print("Falling back to OpenAI Whisper API...")
+        async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
             # Create a temporary file
-            temp_file_path = "temp_audio.webm"
-            with open(temp_file_path, "wb") as f:
-                f.write(audio_chunk)
+            temp_file_path = "/tmp/temp_audio.webm"
+            try:
+                with open(temp_file_path, "wb") as f:
+                    f.write(audio_chunk)
+                print(f"Saved temporary audio file: {temp_file_path}")
+            except Exception as e:
+                print(f"Error saving temp file: {str(e)}")
+                return None
             
             # Send to OpenAI Whisper API
-            files = {'file': open(temp_file_path, 'rb')}
-            response = await client.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}"
-                },
-                data={"model": "whisper-1"},
-                files=files
-            )
-            
-            # Clean up temp file
             try:
-                os.remove(temp_file_path)
-            except:
-                pass
+                files = {'file': open(temp_file_path, 'rb')}
+                response = await client.post(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    headers={
+                        "Authorization": f"Bearer {OPENAI_API_KEY}"
+                    },
+                    data={"model": "whisper-1"},
+                    files=files
+                )
                 
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("text", "")
-            else:
-                print(f"OpenAI speech recognition error: {response.status_code} - {response.text}")
+                print(f"OpenAI Whisper API response status: {response.status_code}")
+                
+                # Clean up temp file
+                try:
+                    os.remove(temp_file_path)
+                    print("Temp file removed")
+                except Exception as e:
+                    print(f"Error removing temp file: {str(e)}")
+                    
+                if response.status_code == 200:
+                    result = response.json()
+                    transcribed_text = result.get("text", "")
+                    print(f"Whisper transcription successful: '{transcribed_text[:50]}...'")
+                    return transcribed_text
+                else:
+                    print(f"OpenAI speech recognition error: {response.status_code} - {response.text}")
+            except Exception as e:
+                print(f"Error in Whisper API call: {str(e)}")
+                print(traceback.format_exc())
+                try:
+                    os.remove(temp_file_path)
+                    print("Temp file removed after error")
+                except:
+                    pass
     except Exception as e:
-        print(f"Error in OpenAI transcription: {str(e)}")
-        try:
-            os.remove(temp_file_path)
-        except:
-            pass
+        print(f"Error in OpenAI transcription process: {str(e)}")
+        print(traceback.format_exc())
     
+    print("All transcription methods failed")
     return None
 
 # Routes
 @app.get("/", response_class=HTMLResponse)
 async def get_root():
-    with open("static/index.html", "r") as f:
-        return f.read()
-    
-@app.get("/", response_class=HTMLResponse)
-async def get_root():
     print(f"App version: {APP_VERSION}")
     with open("static/index.html", "r") as f:
         return f.read()
-    
+
 @app.get("/version")
 async def get_version():
     return {"version": APP_VERSION, "handler": "full"}
@@ -262,6 +308,8 @@ async def test_model():
             "raw_response": response
         }
     except Exception as e:
+        print(f"Error in test-model: {str(e)}")
+        print(traceback.format_exc())
         return {
             "status": "error",
             "error": str(e)
@@ -298,6 +346,7 @@ async def update_system_prompt(data: SystemPromptUpdate):
         return {"status": "success"}
     except Exception as e:
         print(f"Error updating system prompt: {str(e)}")
+        print(traceback.format_exc())
         return {"status": "error", "error": str(e)}
 
 
@@ -313,7 +362,7 @@ async def websocket_endpoint(websocket: WebSocket):
     async def ping():
         while True:
             try:
-                await asyncio.sleep(30)
+                await asyncio.sleep(15)  # Reduced from 30 seconds
                 await websocket.send_text('{"ping": 1}')
                 print("Ping sent to keep connection alive")
             except Exception as e:
@@ -326,37 +375,48 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Handle WebSocket connection for real-time audio streaming
         while True:
-            # Log connection state
-            print(f"WebSocket connection state: {websocket.client_state}")
-            
-            # Receive audio chunk from client
             try:
-                print("Waiting for audio data...")
+                # Log connection state
+                print(f"WebSocket connection state: {websocket.client_state}")
+                
+                # Receive audio chunk from client
+                print("About to receive message...")
                 message = await websocket.receive()
                 
                 # Check if this is a text message (might be a pong response)
                 if message.get("type") == "text":
                     text_data = message.get("text", "{}")
+                    print(f"Received text message: {text_data[:100]}...")
                     try:
                         json_data = json.loads(text_data)
                         if json_data.get("pong") == 1:
                             print("Received pong from client")
                             continue
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"Error parsing text message: {str(e)}")
+                        continue
                 
                 # Handle binary audio data
                 if message.get("type") == "bytes":
                     audio_chunk = message.get("bytes")
-                    print(f"Received audio chunk of size: {len(audio_chunk)} bytes")
+                    print(f"Received audio chunk of size: {len(audio_chunk)} bytes - mime type: {message.get('subtype', 'unknown')}")
+                    
+                    # TESTING: Uncomment to quickly test if basic responses work
+                    # await websocket.send_json({"text": "This is a test response, skipping actual processing"})
+                    # test_audio = b'TEST_AUDIO_DATA'
+                    # await websocket.send_bytes(test_audio)
+                    # continue  # Skip regular processing
                     
                     # Save for debugging (optional)
-                    with open("debug_audio.webm", "wb") as f:
-                        f.write(audio_chunk)
-                    print("Saved debug audio file")
+                    try:
+                        with open("/tmp/debug_audio.webm", "wb") as f:
+                            f.write(audio_chunk)
+                        print("Saved debug audio file")
+                    except Exception as e:
+                        print(f"Error saving debug file: {str(e)} - continuing without saving")
                     
                     # Use Speech-to-Text to convert audio to text
-                    print("Converting speech to text...")
+                    print(f"About to transcribe {len(audio_chunk)} bytes of audio...")
                     transcribed_text = await elevenlabs_speech_to_text(audio_chunk)
                     
                     if not transcribed_text:
@@ -364,7 +424,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({"error": "Failed to transcribe audio. Please try again."})
                         continue
                         
-                    print(f"Transcribed text: {transcribed_text}")
+                    print(f"Transcription result: SUCCESS - '{transcribed_text}'")
                     
                     # Add user message to conversation history
                     conversation_history.append({"role": "user", "content": transcribed_text})
@@ -373,21 +433,23 @@ async def websocket_endpoint(websocket: WebSocket):
                     print("Sending to OpenAI API...")
                     try:
                         response = await call_openai_api(conversation_history, include_system_prompt=False)
-                        print(f"OpenAI API response: {json.dumps(response)[:200]}...")
+                        print(f"OpenAI API response received successfully")
                     except Exception as e:
                         print(f"Error calling OpenAI API: {str(e)}")
+                        print(traceback.format_exc())
                         await websocket.send_json({"error": f"Error calling AI model: {str(e)}"})
                         continue
                     
                     if response and "choices" in response and len(response["choices"]) > 0:
                         # Extract assistant's response
                         assistant_message = response["choices"][0]["message"]["content"]
-                        print(f"Assistant response: {assistant_message}")
+                        print(f"Assistant response: '{assistant_message}'")
                         
                         # Add to conversation history
                         conversation_history.append({"role": "assistant", "content": assistant_message})
                         
                         # Send text response immediately
+                        print("Sending text response to client...")
                         await websocket.send_json({"text": assistant_message})
                         
                         # Convert to speech
@@ -396,6 +458,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             audio_response = await elevenlabs_text_to_speech(assistant_message)
                         except Exception as e:
                             print(f"Error in text-to-speech: {str(e)}")
+                            print(traceback.format_exc())
                             await websocket.send_json({"error": f"Error generating speech: {str(e)}"})
                             continue
                         
@@ -403,31 +466,41 @@ async def websocket_endpoint(websocket: WebSocket):
                             # Send audio
                             print(f"Sending audio response of size: {len(audio_response)} bytes")
                             await websocket.send_bytes(audio_response)
+                            print("Audio response sent successfully")
                         else:
                             print("Failed to generate speech")
                             await websocket.send_json({"error": "Failed to generate speech", "text": assistant_message})
                     else:
                         error_msg = "Failed to get response from AI model"
                         if "error" in response:
-                            error_msg += f": {response['error']}"
+                            error_msg += f": {response.get('error', {}).get('message', 'Unknown error')}"
                         print(error_msg)
                         await websocket.send_json({"error": error_msg})
                 
+            except WebSocketDisconnect:
+                print("WebSocket disconnected during processing")
+                break  # Exit the loop if disconnected
             except Exception as e:
-                print(f"Error receiving audio: {str(e)}")
-                await websocket.send_json({"error": f"Error receiving audio: {str(e)}"})
+                print(f"Error in processing: {str(e)}")
+                print(traceback.format_exc())
+                try:
+                    await websocket.send_json({"error": f"Error processing: {str(e)}"})
+                except:
+                    print("Could not send error message - connection may be closed")
                 continue
     
     except WebSocketDisconnect:
         print("WebSocket disconnected")
         ping_task.cancel()  # Cancel ping task on disconnect
     except Exception as e:
-        print(f"Error in websocket: {str(e)}")
+        print(f"Critical WebSocket error: {str(e)}")
+        print(traceback.format_exc())
         ping_task.cancel()  # Cancel ping task on error
         try:
             await websocket.send_json({"error": f"Server error: {str(e)}"})
         except:
-            pass
+            print("Could not send error message after critical error - connection may be closed")
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
