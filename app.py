@@ -230,6 +230,10 @@ async def get_root():
     with open("static/index.html", "r") as f:
         return f.read()
     
+@app.get("/version")
+async def get_version():
+    return {"version": APP_VERSION, "handler": "full"}
+    
 @app.get("/test-model")
 async def test_model():
     """Test endpoint to verify the fine-tuned model is working correctly"""
